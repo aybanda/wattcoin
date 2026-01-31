@@ -1,0 +1,496 @@
+"""
+Grok-Claude Bridge - Web Interface v1.1.0
+Human-in-the-loop AI collaboration for WattCoin project
++ Proxy endpoint for external API calls (Moltbook, etc.)
+"""
+
+import os
+import json
+import requests
+from datetime import datetime
+from flask import Flask, render_template_string, request, session, jsonify
+from anthropic import Anthropic
+from openai import OpenAI
+
+app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "wattcoin-dev-key-change-in-prod")
+
+# API clients
+GROK_API_KEY = os.getenv("GROK_API_KEY")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
+PROXY_SECRET = os.getenv("PROXY_SECRET", "wattcoin-proxy-secret-change-me")
+
+if not GROK_API_KEY or not CLAUDE_API_KEY:
+    print("WARNING: Set GROK_API_KEY and CLAUDE_API_KEY environment variables")
+
+grok_client = None
+claude_client = None
+
+def init_clients():
+    global grok_client, claude_client
+    if GROK_API_KEY:
+        grok_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
+    if CLAUDE_API_KEY:
+        claude_client = Anthropic(api_key=CLAUDE_API_KEY)
+
+init_clients()
+
+# Project context
+WATTCOIN_CONTEXT = """
+WattCoin (WATT) is a pure utility token on Solana for AI/robot automation payments.
+- Purpose: Energy, task execution, maintenance, rewards in automation ecosystems
+- Platform: Solana (65k TPS, ~$0.00025/tx)
+- Supply: 1B WATT fixed cap, 0.15% burn per transaction
+- CA: Gpmbh4PoQnL1kNgpMYDED3iv4fczcr7d3qNBLf8rpump
+- Use cases: Task marketplace, autonomous sustainment, owner revenue, cross-chain bridges
+- Status: LIVE on mainnet (Jan 31, 2026)
+"""
+
+GROK_SYSTEM = f"""You are the Strategy Consultant for the WattCoin project.
+Your role: High-level strategy, market analysis, tokenomics advice, launch planning.
+Project context: {WATTCOIN_CONTEXT}
+Keep responses focused and actionable. You're collaborating with Claude (implementation/coder)."""
+
+CLAUDE_SYSTEM = f"""You are the Implementation Lead for the WattCoin project.
+Your role: Technical implementation, coding, smart contracts, infrastructure.
+Project context: {WATTCOIN_CONTEXT}
+Keep responses focused and actionable. You're collaborating with Grok (strategy consultant)."""
+
+def query_grok(prompt, history=[]):
+    if not grok_client:
+        return "Error: Grok API key not configured"
+    messages = [{"role": "system", "content": GROK_SYSTEM}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": prompt})
+    
+    response = grok_client.chat.completions.create(
+        model="grok-3",
+        messages=messages,
+        max_tokens=2048
+    )
+    return response.choices[0].message.content
+
+def query_claude(prompt, history=[]):
+    if not claude_client:
+        return "Error: Claude API key not configured"
+    messages = []
+    for msg in history:
+        if msg["role"] in ["user", "assistant"]:
+            messages.append(msg)
+    messages.append({"role": "user", "content": prompt})
+    
+    response = claude_client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2048,
+        system=CLAUDE_SYSTEM,
+        messages=messages
+    )
+    return response.content[0].text
+
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WattCoin - Grok/Claude Bridge</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a; color: #e0e0e0; min-height: 100vh;
+            padding: 20px; max-width: 1200px; margin: 0 auto;
+        }
+        h1 { color: #00ff88; margin-bottom: 10px; font-size: 1.8em; }
+        .subtitle { color: #888; margin-bottom: 30px; }
+        .input-section { margin-bottom: 30px; }
+        textarea { 
+            width: 100%; padding: 15px; border-radius: 8px; 
+            background: #1a1a1a; border: 1px solid #333; color: #e0e0e0;
+            font-size: 16px; resize: vertical; min-height: 100px;
+        }
+        textarea:focus { outline: none; border-color: #00ff88; }
+        .btn { 
+            padding: 12px 24px; border-radius: 6px; border: none; 
+            cursor: pointer; font-size: 14px; font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #00ff88; color: #000; }
+        .btn-primary:hover { background: #00cc6a; }
+        .btn-secondary { background: #333; color: #e0e0e0; }
+        .btn-secondary:hover { background: #444; }
+        .btn-danger { background: #ff4444; color: #fff; }
+        .btn-danger:hover { background: #cc3333; }
+        .buttons { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        .response-box { 
+            background: #1a1a1a; border-radius: 8px; padding: 20px; 
+            margin-bottom: 20px; border-left: 4px solid #333;
+        }
+        .response-box.grok { border-left-color: #ff6600; }
+        .response-box.claude { border-left-color: #00aaff; }
+        .response-box h3 { margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .response-box.grok h3 { color: #ff6600; }
+        .response-box.claude h3 { color: #00aaff; }
+        .response-content { 
+            white-space: pre-wrap; line-height: 1.6; 
+            background: #0d0d0d; padding: 15px; border-radius: 4px;
+        }
+        .history { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
+        .history h2 { color: #888; margin-bottom: 20px; }
+        .exchange { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #222; }
+        .exchange-prompt { color: #00ff88; margin-bottom: 10px; font-weight: 600; }
+        .timestamp { color: #555; font-size: 12px; }
+        .loading { display: none; color: #00ff88; padding: 20px; }
+        .spinner { display: inline-block; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .status { padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+        .status.error { background: #331111; color: #ff6666; }
+        .status.success { background: #113311; color: #66ff66; }
+        #editPrompt { display: none; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h1>⚡ WattCoin Bridge v1.1</h1>
+    <p class="subtitle">Grok (Strategy) ↔ Claude (Implementation) | Proxy: Active</p>
+    
+    {% if status %}
+    <div class="status {{ status.type }}">{{ status.message }}</div>
+    {% endif %}
+    
+    <div class="input-section">
+        <form method="POST" action="/query" id="mainForm">
+            <textarea name="prompt" placeholder="Enter your topic or question for the AI collaboration..." required>{{ prompt or '' }}</textarea>
+            <div class="buttons">
+                <button type="submit" class="btn btn-primary">🚀 Send to Grok</button>
+                <button type="button" class="btn btn-secondary" onclick="clearHistory()">🗑️ Clear History</button>
+            </div>
+        </form>
+    </div>
+    
+    <div class="loading" id="loading">
+        <span class="spinner">⚡</span> Processing...
+    </div>
+    
+    {% if grok_response %}
+    <div class="response-box grok">
+        <h3>🤖 GROK (Strategy)</h3>
+        <div class="response-content">{{ grok_response }}</div>
+        <div class="buttons">
+            <form method="POST" action="/send-to-claude" style="display:inline;">
+                <input type="hidden" name="grok_response" value="{{ grok_response }}">
+                <input type="hidden" name="original_prompt" value="{{ prompt }}">
+                <button type="submit" class="btn btn-primary">✅ Send to Claude</button>
+            </form>
+            <button type="button" class="btn btn-secondary" onclick="showEdit()">✏️ Edit Prompt</button>
+            <form method="POST" action="/skip-claude" style="display:inline;">
+                <input type="hidden" name="grok_response" value="{{ grok_response }}">
+                <input type="hidden" name="original_prompt" value="{{ prompt }}">
+                <button type="submit" class="btn btn-secondary">⏭️ Skip Claude</button>
+            </form>
+        </div>
+        <div id="editPrompt">
+            <form method="POST" action="/send-to-claude">
+                <textarea name="custom_prompt" placeholder="Custom prompt for Claude..."></textarea>
+                <input type="hidden" name="grok_response" value="{{ grok_response }}">
+                <input type="hidden" name="original_prompt" value="{{ prompt }}">
+                <button type="submit" class="btn btn-primary" style="margin-top:10px;">Send Custom Prompt</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if claude_response %}
+    <div class="response-box claude">
+        <h3>🧠 CLAUDE (Implementation)</h3>
+        <div class="response-content">{{ claude_response }}</div>
+        <div class="buttons">
+            <form method="POST" action="/send-to-grok" style="display:inline;">
+                <input type="hidden" name="claude_response" value="{{ claude_response }}">
+                <button type="submit" class="btn btn-secondary">🔄 Send to Grok</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if history %}
+    <div class="history">
+        <h2>📜 Conversation History</h2>
+        {% for ex in history|reverse %}
+        <div class="exchange">
+            <div class="timestamp">{{ ex.timestamp }}</div>
+            <div class="exchange-prompt">💬 {{ ex.prompt }}</div>
+            <div class="response-box grok" style="margin:10px 0;">
+                <h3>🤖 Grok</h3>
+                <div class="response-content">{{ ex.grok }}</div>
+            </div>
+            {% if ex.claude != '[skipped]' %}
+            <div class="response-box claude">
+                <h3>🧠 Claude</h3>
+                <div class="response-content">{{ ex.claude }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <script>
+        function showEdit() {
+            document.getElementById('editPrompt').style.display = 'block';
+        }
+        function clearHistory() {
+            if (confirm('Clear all conversation history?')) {
+                window.location.href = '/clear';
+            }
+        }
+        document.getElementById('mainForm').onsubmit = function() {
+            document.getElementById('loading').style.display = 'block';
+        };
+    </script>
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    history = session.get('history', [])
+    return render_template_string(HTML_TEMPLATE, history=history)
+
+@app.route('/query', methods=['POST'])
+def query():
+    prompt = request.form.get('prompt', '')
+    history = session.get('history', [])
+    grok_history = session.get('grok_history', [])
+    
+    try:
+        grok_response = query_grok(prompt, grok_history)
+        session['pending_grok'] = grok_response
+        session['grok_history'] = grok_history + [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": grok_response}
+        ]
+        return render_template_string(HTML_TEMPLATE, 
+            prompt=prompt, grok_response=grok_response, history=history)
+    except Exception as e:
+        return render_template_string(HTML_TEMPLATE, 
+            history=history, status={'type': 'error', 'message': f'Grok error: {str(e)}'})
+
+@app.route('/send-to-claude', methods=['POST'])
+def send_to_claude():
+    grok_response = request.form.get('grok_response', '')
+    original_prompt = request.form.get('original_prompt', '')
+    custom_prompt = request.form.get('custom_prompt', '')
+    
+    history = session.get('history', [])
+    claude_history = session.get('claude_history', [])
+    
+    if custom_prompt:
+        claude_prompt = custom_prompt
+    else:
+        claude_prompt = f"Grok (strategy consultant) said:\n\n{grok_response}\n\nRespond with implementation perspective."
+    
+    try:
+        claude_response = query_claude(claude_prompt, claude_history)
+        session['claude_history'] = claude_history + [
+            {"role": "user", "content": claude_prompt},
+            {"role": "assistant", "content": claude_response}
+        ]
+        
+        # Log exchange
+        history.append({
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'prompt': original_prompt,
+            'grok': grok_response,
+            'claude': claude_response
+        })
+        session['history'] = history
+        
+        return render_template_string(HTML_TEMPLATE,
+            prompt=original_prompt, grok_response=grok_response, 
+            claude_response=claude_response, history=history)
+    except Exception as e:
+        return render_template_string(HTML_TEMPLATE,
+            history=history, status={'type': 'error', 'message': f'Claude error: {str(e)}'})
+
+@app.route('/skip-claude', methods=['POST'])
+def skip_claude():
+    grok_response = request.form.get('grok_response', '')
+    original_prompt = request.form.get('original_prompt', '')
+    history = session.get('history', [])
+    
+    history.append({
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'prompt': original_prompt,
+        'grok': grok_response,
+        'claude': '[skipped]'
+    })
+    session['history'] = history
+    
+    return render_template_string(HTML_TEMPLATE, history=history,
+        status={'type': 'success', 'message': 'Skipped Claude, logged Grok response.'})
+
+@app.route('/send-to-grok', methods=['POST'])
+def send_to_grok():
+    claude_response = request.form.get('claude_response', '')
+    prompt = f"Claude (implementation) responded:\n\n{claude_response}\n\nYour thoughts?"
+    
+    history = session.get('history', [])
+    grok_history = session.get('grok_history', [])
+    
+    try:
+        grok_response = query_grok(prompt, grok_history)
+        session['grok_history'] = grok_history + [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": grok_response}
+        ]
+        return render_template_string(HTML_TEMPLATE,
+            prompt=prompt, grok_response=grok_response, history=history)
+    except Exception as e:
+        return render_template_string(HTML_TEMPLATE,
+            history=history, status={'type': 'error', 'message': f'Grok error: {str(e)}'})
+
+@app.route('/clear')
+def clear():
+    session.clear()
+    return render_template_string(HTML_TEMPLATE, 
+        status={'type': 'success', 'message': 'History cleared.'})
+
+
+# =============================================================================
+# PROXY ENDPOINTS - v1.1.0
+# =============================================================================
+
+@app.route('/proxy', methods=['POST'])
+def proxy_request():
+    """
+    Generic HTTP proxy endpoint - bypasses Claude's egress restrictions.
+    
+    Request JSON:
+    {
+        "secret": "your-proxy-secret",
+        "method": "POST",
+        "url": "https://www.moltbook.com/api/v1/posts/{id}/comments",
+        "headers": {"Authorization": "Bearer xxx", "Content-Type": "application/json"},
+        "body": {"content": "your comment"}
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        # Auth check
+        if data.get('secret') != PROXY_SECRET:
+            return jsonify({'error': 'Invalid secret'}), 401
+        
+        method = data.get('method', 'GET').upper()
+        url = data.get('url')
+        headers = data.get('headers', {})
+        body = data.get('body')
+        
+        if not url:
+            return jsonify({'error': 'URL required'}), 400
+        
+        # Make the proxied request
+        if method == 'GET':
+            resp = requests.get(url, headers=headers, timeout=30)
+        elif method == 'POST':
+            resp = requests.post(url, headers=headers, json=body, timeout=30)
+        elif method == 'PUT':
+            resp = requests.put(url, headers=headers, json=body, timeout=30)
+        elif method == 'DELETE':
+            resp = requests.delete(url, headers=headers, timeout=30)
+        else:
+            return jsonify({'error': f'Unsupported method: {method}'}), 400
+        
+        # Return response
+        try:
+            response_data = resp.json()
+        except:
+            response_data = resp.text
+        
+        return jsonify({
+            'status_code': resp.status_code,
+            'response': response_data
+        }), 200
+        
+    except requests.Timeout:
+        return jsonify({'error': 'Request timeout'}), 504
+    except requests.RequestException as e:
+        return jsonify({'error': f'Request failed: {str(e)}'}), 502
+    except Exception as e:
+        return jsonify({'error': f'Proxy error: {str(e)}'}), 500
+
+
+@app.route('/proxy/moltbook', methods=['POST'])
+def proxy_moltbook():
+    """
+    Convenience endpoint specifically for Moltbook API calls.
+    
+    Request JSON:
+    {
+        "secret": "your-proxy-secret",
+        "endpoint": "/posts/{post_id}/comments",
+        "method": "POST",
+        "api_key": "moltbook_sk_xxx",
+        "body": {"content": "your comment"}
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        # Auth check
+        if data.get('secret') != PROXY_SECRET:
+            return jsonify({'error': 'Invalid secret'}), 401
+        
+        endpoint = data.get('endpoint', '')
+        method = data.get('method', 'GET').upper()
+        api_key = data.get('api_key')
+        body = data.get('body')
+        
+        if not endpoint:
+            return jsonify({'error': 'Endpoint required'}), 400
+        if not api_key:
+            return jsonify({'error': 'Moltbook API key required'}), 400
+        
+        # Build Moltbook URL (always use www)
+        url = f"https://www.moltbook.com/api/v1{endpoint}"
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Make request
+        if method == 'GET':
+            resp = requests.get(url, headers=headers, timeout=30)
+        elif method == 'POST':
+            resp = requests.post(url, headers=headers, json=body, timeout=30)
+        else:
+            return jsonify({'error': f'Unsupported method: {method}'}), 400
+        
+        try:
+            response_data = resp.json()
+        except:
+            response_data = resp.text
+        
+        return jsonify({
+            'status_code': resp.status_code,
+            'response': response_data
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Moltbook proxy error: {str(e)}'}), 500
+
+
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'ok', 
+        'version': '1.1.0',
+        'grok': bool(grok_client), 
+        'claude': bool(claude_client),
+        'proxy': True
+    })
+
+
+if __name__ == '__main__':
+    port = int(os.getenv('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
