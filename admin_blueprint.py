@@ -678,17 +678,27 @@ PAYOUTS_TEMPLATE = """
                                 {% endif %}">
                                 {{ payout.status }}
                             </span>
+                            {% if payout.tx_sig %}
+                            <a href="https://solscan.io/tx/{{ payout.tx_sig }}" target="_blank" 
+                               class="text-xs text-green-400 hover:underline ml-2">TX</a>
+                            {% endif %}
                         </td>
                         <td class="px-4 py-3">
                             {% if payout.status == 'pending' and payout.wallet %}
-                            <button onclick="copyWallet('{{ payout.wallet }}', {{ payout.amount }})"
-                               class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium transition inline-flex items-center gap-1">
-                                📋 Copy Wallet
-                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="copyWallet('{{ payout.wallet }}', {{ payout.amount }})"
+                                   class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium transition inline-flex items-center gap-1">
+                                    📋 Copy
+                                </button>
+                                <button onclick="markPaid({{ payout.pr_number }})"
+                                   class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium transition inline-flex items-center gap-1">
+                                    ✓ Paid
+                                </button>
+                            </div>
                             {% elif payout.status == 'pending' and not payout.wallet %}
                             <span class="text-xs text-red-400">No wallet</span>
                             {% else %}
-                            <span class="text-xs text-gray-500">—</span>
+                            <span class="text-xs text-gray-500">✓ Complete</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -720,6 +730,13 @@ PAYOUTS_TEMPLATE = """
                 toast.classList.add('show');
                 setTimeout(() => toast.classList.remove('show'), 3000);
             });
+        }
+        
+        function markPaid(prNumber) {
+            const txSig = prompt('Enter Solana TX signature (optional):');
+            if (txSig !== null) {
+                window.location.href = '/admin/payout/' + prNumber + '/paid?tx=' + encodeURIComponent(txSig);
+            }
         }
     </script>
 </body>
@@ -1054,6 +1071,24 @@ def claims():
         claims=claim_list,
         repo=REPO
     )
+
+@admin_bp.route('/payout/<int:pr_number>/paid')
+@login_required
+def mark_paid(pr_number):
+    """Mark a payout as paid."""
+    tx_sig = request.args.get('tx', '').strip()
+    
+    data = load_data()
+    for payout in data.get("payouts", []):
+        if payout.get("pr_number") == pr_number:
+            payout["status"] = "paid"
+            payout["paid_at"] = datetime.now().isoformat()
+            if tx_sig:
+                payout["tx_sig"] = tx_sig
+            break
+    
+    save_data(data)
+    return redirect(url_for('admin.payouts', message=f"PR #{pr_number} marked as paid"))
 
 @admin_bp.route('/clear-data')
 @login_required
