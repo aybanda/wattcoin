@@ -179,7 +179,7 @@ Output in this exact format:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "grok-3",
+                "model": "grok-4-1-fast-reasoning",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.2,
                 "max_tokens": 1500
