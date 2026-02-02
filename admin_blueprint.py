@@ -471,7 +471,7 @@ DASHBOARD_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WattCoin Bounty Dashboard</title>
+    <title>PR Reviews & Payouts - WattCoin Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
@@ -480,7 +480,7 @@ DASHBOARD_TEMPLATE = """
         <div class="flex justify-between items-center mb-4">
             <div>
                 <h1 class="text-2xl font-bold text-green-400">⚡ WattCoin Admin</h1>
-                <p class="text-gray-500 text-sm">v1.3.0 | {{ repo }}</p>
+                <p class="text-gray-500 text-sm">v1.9.0 | PR Reviews & Bounty Payouts</p>
             </div>
             <a href="{{ url_for('admin.logout') }}" class="text-gray-400 hover:text-red-400 text-sm">Logout</a>
         </div>
@@ -1091,7 +1091,7 @@ API_KEYS_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Keys - WattCoin Admin</title>
+    <title>Scraper API Keys - WattCoin Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .toast {
@@ -1111,7 +1111,7 @@ API_KEYS_TEMPLATE = """
         <div class="flex justify-between items-center mb-4">
             <div>
                 <h1 class="text-2xl font-bold text-green-400">⚡ WattCoin Admin</h1>
-                <p class="text-gray-500 text-sm">v1.3.0 | {{ repo }}</p>
+                <p class="text-gray-500 text-sm">v1.9.0 | Scraper API Keys - Premium Access (Skip WATT Payment)</p>
             </div>
             <a href="{{ url_for('admin.logout') }}" class="text-gray-400 hover:text-red-400 text-sm">Logout</a>
         </div>
@@ -1691,7 +1691,7 @@ SUBMISSIONS_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Submissions - WattCoin Admin</title>
+    <title>Agent Task Submissions - WattCoin Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background: #0a0a0a; color: #e5e5e5; }
@@ -1704,7 +1704,7 @@ SUBMISSIONS_HTML = """
         <div class="flex justify-between items-center mb-4">
             <div>
                 <h1 class="text-2xl font-bold text-green-400">⚡ WattCoin Admin</h1>
-                <p class="text-gray-500 text-sm">v1.8.0 | Task Submissions</p>
+                <p class="text-gray-500 text-sm">v1.9.0 | Agent Task Submissions - Review & Payout</p>
             </div>
             <a href="{{ url_for('admin.logout') }}" class="text-gray-400 hover:text-red-400 text-sm">Logout</a>
         </div>
