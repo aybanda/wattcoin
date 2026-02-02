@@ -510,3 +510,35 @@ def cancel_job(job_id: str):
     if job_id in jobs_data.get("jobs", {}):
         jobs_data["jobs"][job_id]["status"] = "cancelled"
     save_jobs(jobs_data)
+
+
+# === TEST ENDPOINT (Admin only) ===
+@nodes_bp.route('/api/v1/nodes/test/create-job', methods=['POST'])
+def test_create_job():
+    """
+    Admin endpoint to create a test job for debugging.
+    Requires ADMIN_PASSWORD header.
+    """
+    import os
+    admin_pass = os.environ.get('ADMIN_PASSWORD', '')
+    auth_header = request.headers.get('Authorization', '')
+    
+    if not admin_pass or auth_header != f'Bearer {admin_pass}':
+        return jsonify({"success": False, "error": "unauthorized"}), 401
+    
+    body = request.get_json() or {}
+    job_type = body.get('type', 'scrape')
+    url = body.get('url', 'https://example.com')
+    payment = body.get('payment', 100)
+    
+    result = create_job(
+        job_type=job_type,
+        payload={'url': url, 'format': 'text'},
+        total_payment=payment,
+        requester_wallet='test_admin'
+    )
+    
+    return jsonify({
+        "success": True,
+        "job": result
+    })
