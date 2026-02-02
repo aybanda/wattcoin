@@ -1,4 +1,16 @@
 ## [February 3, 2026] - [UTC]
+- **Action**: Auto-payout feature
+- **Version**: v2.1.1
+- **Files**: api_nodes.py
+- **Summary**: Auto-payout for WattNode jobs
+  - Nodes automatically receive WATT when jobs complete
+  - New `send_node_payout()` function (same pattern as task payouts)
+  - Requires `TREASURY_WALLET_PRIVATE_KEY` env var
+  - Response includes `payout_tx` on success or `payout_error` on failure
+  - Job record stores `payout_status` and `payout_tx`
+- **Requested by**: Chris
+
+## [February 3, 2026] - [UTC]
 - **Action**: WattNode daemon release
 - **Version**: v2.1.0 (Phase 2)
 - **Files**: wattnode/ folder (new)
