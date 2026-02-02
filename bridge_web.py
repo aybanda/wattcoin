@@ -1,9 +1,14 @@
 """
-Grok-Claude Bridge - Web Interface v1.3.0
+Grok-Claude Bridge - Web Interface v1.9.0
 Human-in-the-loop AI collaboration for WattCoin project
 + Proxy endpoint for external API calls (Moltbook, etc.)
 + Admin dashboard for bounty management
-+ API key authentication for scraper
++ Paid scraper API (100 WATT per scrape)
+
+CHANGELOG v1.9.0:
+- Scraper now requires WATT payment (100 WATT) or API key
+- Same payment verification as LLM proxy
+- API keys still work for premium users (skip payment)
 
 CHANGELOG v1.3.0:
 - Added API key authentication for /api/v1/scrape endpoint
@@ -50,7 +55,7 @@ CORS(app, origins=[
 # =============================================================================
 from admin_blueprint import admin_bp
 from api_bounties import bounties_bp
-from api_llm import llm_bp
+from api_llm import llm_bp, verify_watt_payment, load_used_signatures, save_used_signatures
 from api_reputation import reputation_bp
 from api_tasks import tasks_bp
 app.register_blueprint(admin_bp)
@@ -616,6 +621,24 @@ def clear():
 
 @app.route('/api/v1/scrape', methods=['POST'])
 def scrape():
+    """
+    Web scraper endpoint - requires WATT payment or API key.
+    
+    Request:
+        {
+            "url": "https://example.com",
+            "format": "text|html|json",
+            "wallet": "AgentWallet...",      # Required if no API key
+            "tx_signature": "..."             # Required if no API key
+        }
+    
+    Headers:
+        X-API-Key: <key>  (optional - skips payment if valid)
+    
+    Pricing: 100 WATT per scrape
+    """
+    SCRAPE_PRICE_WATT = 100
+    
     data = request.get_json(silent=True) or {}
     target_url = data.get('url', '').strip()
     output_format = (data.get('format') or 'text').strip().lower()
@@ -627,16 +650,18 @@ def scrape():
     if not _validate_scrape_url(target_url):
         return jsonify({'success': False, 'error': 'Invalid or blocked URL'}), 400
 
-    # Check for API key authentication
+    # Check for API key authentication (premium bypass)
     api_key = request.headers.get('X-API-Key', '').strip()
     key_data = _validate_api_key(api_key) if api_key else None
+    payment_verified = False
+    tx_signature = None
     
     if api_key and not key_data:
         # Invalid API key provided
         return jsonify({'success': False, 'error': 'Invalid API key'}), 401
     
     if key_data:
-        # Use API key rate limiting (higher limits)
+        # Valid API key - use rate limiting, skip payment
         tier = key_data.get('tier', 'basic')
         allowed, retry_after = _check_api_key_rate_limit(api_key, target_url, tier)
         if not allowed:
@@ -648,16 +673,43 @@ def scrape():
             }), 429
         # Increment usage count
         _increment_api_key_usage(api_key)
+        payment_verified = True  # API key acts as payment
     else:
-        # No API key - use IP-based rate limiting
-        client_ip = _get_client_ip()
-        allowed, retry_after = _check_rate_limit(client_ip, target_url)
-        if not allowed:
+        # No API key - require WATT payment
+        wallet = data.get('wallet', '').strip()
+        tx_signature = data.get('tx_signature', '').strip()
+        
+        if not wallet or not tx_signature:
             return jsonify({
                 'success': False,
-                'error': 'Rate limit exceeded',
-                'retry_after_seconds': retry_after
-            }), 429
+                'error': 'payment_required',
+                'message': 'Either API key or WATT payment required',
+                'price_watt': SCRAPE_PRICE_WATT,
+                'payment_to': '7vvNkG3JF3JpxLEavqZSkc5T3n9hHR98Uw23fbWdXVSF'
+            }), 402
+        
+        # Verify WATT payment
+        verified, error_code, error_message = verify_watt_payment(
+            tx_signature, wallet, SCRAPE_PRICE_WATT
+        )
+        
+        if not verified:
+            return jsonify({
+                'success': False,
+                'error': error_code,
+                'message': error_message
+            }), 400
+        
+        # Mark signature as used
+        used_sigs = load_used_signatures()
+        used_sigs[tx_signature] = {
+            'wallet': wallet,
+            'amount': SCRAPE_PRICE_WATT,
+            'service': 'scrape',
+            'used_at': datetime.utcnow().isoformat() + 'Z'
+        }
+        save_used_signatures(used_sigs)
+        payment_verified = True
 
     headers = {
         'User-Agent': random.choice(SCRAPE_USER_AGENTS),
@@ -699,14 +751,24 @@ def scrape():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Parsing error: {str(e)}'}), 500
 
-    return jsonify({
+    response_data = {
         'success': True,
         'url': target_url,
         'content': content,
         'format': output_format,
         'status_code': resp.status_code,
         'timestamp': datetime.utcnow().isoformat() + 'Z'
-    }), 200
+    }
+    
+    # Add payment info if paid with WATT
+    if tx_signature:
+        response_data['tx_verified'] = True
+        response_data['watt_charged'] = SCRAPE_PRICE_WATT
+    elif key_data:
+        response_data['api_key_used'] = True
+        response_data['tier'] = key_data.get('tier', 'basic')
+    
+    return jsonify(response_data), 200
 
 
 # =============================================================================
@@ -837,11 +899,49 @@ def proxy_moltbook():
 def health():
     return jsonify({
         'status': 'ok', 
-        'version': '1.2.0',
+        'version': '1.9.0',
         'grok': bool(grok_client), 
         'claude': bool(claude_client),
         'proxy': True,
         'admin': True
+    })
+
+
+@app.route('/api/v1/pricing', methods=['GET'])
+def unified_pricing():
+    """
+    Unified pricing for all WattCoin paid services.
+    """
+    return jsonify({
+        "services": {
+            "llm": {
+                "endpoint": "/api/v1/llm",
+                "price_watt": 500,
+                "description": "Query Grok AI",
+                "method": "POST"
+            },
+            "scrape": {
+                "endpoint": "/api/v1/scrape",
+                "price_watt": 100,
+                "description": "Web scraper",
+                "method": "POST",
+                "note": "API key holders can skip payment"
+            }
+        },
+        "payment": {
+            "wallet": "7vvNkG3JF3JpxLEavqZSkc5T3n9hHR98Uw23fbWdXVSF",
+            "token_mint": "Gpmbh4PoQnL1kNgpMYDED3iv4fczcr7d3qNBLf8rpump",
+            "tx_max_age_minutes": 10
+        },
+        "request_format": {
+            "required_fields": ["wallet", "tx_signature"],
+            "example": {
+                "url": "https://example.com",
+                "format": "text",
+                "wallet": "YourWalletAddress...",
+                "tx_signature": "YourTxSignature..."
+            }
+        }
     })
 
 
