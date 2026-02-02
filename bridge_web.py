@@ -40,7 +40,9 @@ app.secret_key = os.getenv("SECRET_KEY", "wattcoin-dev-key-change-in-prod")
 # REGISTER ADMIN BLUEPRINT
 # =============================================================================
 from admin_blueprint import admin_bp
+from api_bounties import bounties_bp
 app.register_blueprint(admin_bp)
+app.register_blueprint(bounties_bp)
 
 # =============================================================================
 # API CLIENTS
