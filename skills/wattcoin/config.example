@@ -1,0 +1,37 @@
+# WattCoin Skill Configuration
+# Copy to ~/.wattcoin/config or set as environment variables
+
+# Option 1: Base58 private key (preferred)
+WATT_WALLET_PRIVATE_KEY=your_base58_private_key_here
+
+# Option 2: Path to Solana wallet JSON file
+# WATT_WALLET_FILE=~/.wattcoin/wallet.json
+
+# ============================================================
+# HOW TO GET A WALLET
+# ============================================================
+#
+# 1. Using Solana CLI:
+#    solana-keygen new --outfile ~/.wattcoin/wallet.json
+#
+# 2. Using Phantom:
+#    - Export private key from Phantom settings
+#    - Use the base58 string as WATT_WALLET_PRIVATE_KEY
+#
+# 3. Create programmatically:
+#    from solana.keypair import Keypair
+#    wallet = Keypair()
+#    print(wallet.secret_key.hex())  # Save this securely
+#
+# ============================================================
+# REQUIREMENTS
+# ============================================================
+#
+# Your wallet needs:
+# - ~0.01 SOL for transaction fees
+# - WATT tokens for payments (500 WATT per LLM query)
+#
+# Get WATT:
+# - Complete bounties: https://github.com/WattCoin-Org/wattcoin/issues?q=label:bounty
+# - Complete agent tasks: GET /api/v1/tasks
+# - Trade on DEX: https://dexscreener.com/solana/Gpmbh4PoQnL1kNgpMYDED3iv4fczcr7d3qNBLf8rpump
