@@ -173,16 +173,16 @@ def verify_watt_payment(tx_signature, expected_wallet, expected_amount):
     
     # Fetch transaction with retries (RPC propagation delay)
     tx = None
-    max_retries = 5
+    max_retries = 10
     for attempt in range(max_retries):
         tx, err = get_transaction(tx_signature)
         if tx:
             break
         if attempt < max_retries - 1:
-            time.sleep(2)  # Wait 2 seconds between retries
+            time.sleep(3)  # Wait 3 seconds between retries
     
     if not tx:
-        return False, "tx_not_found", "Transaction not found on chain (tried 5 times)"
+        return False, "tx_not_found", f"Transaction not found on chain after {max_retries} attempts (~30s)"
     
     # Check for errors in tx
     meta = tx.get("meta", {})
