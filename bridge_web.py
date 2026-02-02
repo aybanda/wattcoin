@@ -30,11 +30,20 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from flask import Flask, render_template_string, request, session, jsonify
+from flask_cors import CORS
 from anthropic import Anthropic
 from openai import OpenAI
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "wattcoin-dev-key-change-in-prod")
+
+# CORS - allow wattcoin.org and local dev
+CORS(app, origins=[
+    "https://wattcoin.org",
+    "https://www.wattcoin.org",
+    "http://localhost:5173",
+    "http://localhost:3000"
+])
 
 # =============================================================================
 # REGISTER ADMIN BLUEPRINT
