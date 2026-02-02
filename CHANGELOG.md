@@ -1,4 +1,21 @@
 ## [February 3, 2026] - [UTC]
+- **Action**: WattNode daemon release
+- **Version**: v2.1.0 (Phase 2)
+- **Files**: wattnode/ folder (new)
+- **Summary**: WattNode Light Node Daemon
+  - `/wattnode/wattnode.py` - Main daemon with CLI
+  - `/wattnode/node_config.py` - YAML config handler
+  - `/wattnode/services/scraper.py` - Local scrape service
+  - `/wattnode/services/inference.py` - Ollama inference service
+  - `/wattnode/README.md` - User documentation
+  - `/wattnode/INSTALL.md` - Multi-platform install guide
+  - `/wattnode/config.example.yaml` - Example configuration
+  - CLI commands: register, run, status, earnings
+  - Polling mode (no incoming ports needed)
+  - Raspberry Pi + systemd service support
+- **Requested by**: Chris
+
+## [February 3, 2026] - [UTC]
 - **Action**: Major feature release
 - **Version**: v2.1.0
 - **Files**: api_nodes.py (new), bridge_web.py
