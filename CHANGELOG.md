@@ -1,3 +1,18 @@
+## [February 3, 2026] - [UTC]
+- **Action**: Feature release
+- **Version**: v1.8.0
+- **Files**: api_tasks.py, requirements.txt
+- **Summary**: Task Routing Marketplace - Complete #2
+  - `POST /api/v1/tasks/{id}/submit` - Agent submits task result
+  - Grok AI auto-verification of submissions
+  - Auto-payout on verification pass (confidence ≥ 80%)
+  - Manual review queue for low-confidence submissions
+  - GitHub comment + issue close on completion
+  - Admin endpoints: /submissions, /approve, /reject
+  - Storage: data/task_submissions.json
+  - New env var: BOUNTY_WALLET_PRIVATE_KEY (for auto-payout)
+- **Requested by**: Chris - Issue #2
+
 ## [February 2, 2026] - [UTC]
 - **Action**: Feature release
 - **Version**: v1.7.0
