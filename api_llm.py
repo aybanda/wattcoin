@@ -164,18 +164,25 @@ def verify_watt_payment(tx_signature, expected_wallet, expected_amount):
     Uses pre/post token balance changes for reliable verification.
     Returns (success, error_code, error_message)
     """
+    import time
+    
     # Check if already used (replay protection)
     used_sigs = load_used_signatures()
     if tx_signature in used_sigs:
         return False, "tx_already_used", "Transaction already used for a query"
     
-    # Fetch transaction
-    tx, err = get_transaction(tx_signature)
-    if err:
-        return False, "tx_not_found", "Transaction not found on chain"
+    # Fetch transaction with retries (RPC propagation delay)
+    tx = None
+    max_retries = 5
+    for attempt in range(max_retries):
+        tx, err = get_transaction(tx_signature)
+        if tx:
+            break
+        if attempt < max_retries - 1:
+            time.sleep(2)  # Wait 2 seconds between retries
     
     if not tx:
-        return False, "tx_not_found", "Transaction not found on chain"
+        return False, "tx_not_found", "Transaction not found on chain (tried 5 times)"
     
     # Check for errors in tx
     meta = tx.get("meta", {})
