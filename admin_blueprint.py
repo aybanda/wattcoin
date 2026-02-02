@@ -819,7 +819,7 @@ PAYOUTS_TEMPLATE = """
         // Constants
         const WATT_MINT = 'Gpmbh4PoQnL1kNgpMYDED3iv4fczcr7d3qNBLf8rpump';
         const WATT_DECIMALS = 6;
-        const RPC_URL = 'https://rpc.ankr.com/solana';
+        const RPC_URL = 'https://solana.publicnode.com';
         
         // State
         let walletConnected = false;
