@@ -1,4 +1,17 @@
 ## [February 3, 2026] - [UTC]
+- **Action**: Bounties API extension
+- **Version**: v2.3.0
+- **Files**: api_bounties.py
+- **Summary**: Extended /api/v1/bounties endpoint for agent discovery
+  - Fetches both `bounty` and `agent-task` labeled issues
+  - New `type` field on each item ("bounty" or "agent")
+  - Query param `?type=all|bounty|agent` for filtering
+  - Summary stats: total_bounties, total_agent_tasks, total_watt
+  - Agent tasks have stake_required=0 (no stake needed)
+  - Response key changed: `bounties` → `items`
+- **Requested by**: Chris
+
+## [February 3, 2026] - [UTC]
 - **Action**: Windows GUI release
 - **Version**: v2.2.0
 - **Files**: wattnode/wattnode_gui.py, wattnode/build_windows.py, wattnode/installer.iss, wattnode/requirements_gui.txt, wattnode/README_GUI.md, wattnode/assets/logo.png
