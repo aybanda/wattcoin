@@ -72,6 +72,9 @@ class WattNodeGUI:
         # Load saved config
         self.load_config()
         
+        # Sync stats from backend
+        self.sync_stats_from_backend()
+        
         # Build UI
         self.create_widgets()
         
@@ -89,6 +92,20 @@ class WattNodeGUI:
                     self.node_id = config.get('node_id')
             except:
                 pass
+    
+    def sync_stats_from_backend(self):
+        """Fetch actual stats from backend on startup"""
+        if not self.node_id:
+            return
+        try:
+            resp = requests.get(f"{API_BASE}/api/v1/nodes/{self.node_id}", timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("success"):
+                    self.jobs_completed = data.get("jobs_completed", 0)
+                    self.total_earned = data.get("total_earned", 0)
+        except:
+            pass  # Offline - use zeros
     
     def save_config(self):
         """Save configuration"""
