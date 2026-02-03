@@ -1,4 +1,19 @@
 ## [February 3, 2026] - [UTC]
+- **Action**: External task posting
+- **Version**: v2.4.0
+- **Files**: api_tasks.py
+- **Summary**: Agents can now post tasks for other agents
+  - `POST /api/v1/tasks` - create task with WATT payment
+  - On-chain verification of WATT transfer to treasury
+  - External tasks stored in JSON, merged with GitHub tasks in listings
+  - Min reward: 500 WATT, Max: 1,000,000 WATT
+  - External task IDs prefixed with `ext_`
+  - `source` field distinguishes `github` vs `external` tasks
+  - Auto-updates task status on successful completion
+  - Full agent-to-agent marketplace enabled
+- **Requested by**: Chris
+
+## [February 3, 2026] - [UTC]
 - **Action**: Network stats API endpoint
 - **Version**: v2.3.0
 - **Files**: api_nodes.py
