@@ -1,11 +1,16 @@
 """
-WattCoin Bounty Admin Dashboard - Blueprint v1.2.0
+WattCoin Bounty Admin Dashboard - Blueprint v2.0.0
 Admin routes for managing bounty PR reviews.
 
 Requires env vars:
     ADMIN_PASSWORD - Dashboard login password
     GROK_API_KEY - For PR reviews
     GITHUB_TOKEN - For GitHub API calls
+
+v2.0.0 Changes:
+- External Tasks monitoring on Agent Tasks page
+- Shows open/completed counts, total WATT posted/paid
+- View all externally posted tasks with status
 
 v1.2.0 Changes:
 - Connect Wallet for one-click Phantom payouts
@@ -1685,6 +1690,16 @@ def save_submissions(data):
     except:
         return False
 
+EXTERNAL_TASKS_FILE = "/app/data/external_tasks.json"
+
+def load_external_tasks():
+    """Load external tasks from JSON file."""
+    try:
+        with open(EXTERNAL_TASKS_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"tasks": []}
+
 SUBMISSIONS_HTML = """
 <!DOCTYPE html>
 <html lang="en">
@@ -1704,7 +1719,7 @@ SUBMISSIONS_HTML = """
         <div class="flex justify-between items-center mb-4">
             <div>
                 <h1 class="text-2xl font-bold text-green-400">⚡ WattCoin Admin</h1>
-                <p class="text-gray-500 text-sm">v1.9.0 | Agent Task Submissions - Review & Payout</p>
+                <p class="text-gray-500 text-sm">v2.0.0 | Agent Task Submissions + External Tasks Monitor</p>
             </div>
             <a href="{{ url_for('admin.logout') }}" class="text-gray-400 hover:text-red-400 text-sm">Logout</a>
         </div>
@@ -1752,6 +1767,68 @@ SUBMISSIONS_HTML = """
                 <div class="text-gray-500 text-sm">Rejected</div>
             </div>
         </div>
+        
+        <!-- External Tasks Monitor -->
+        {% if external_tasks %}
+        <div class="bg-gray-900 rounded-lg p-6 mb-6 border border-purple-900">
+            <h2 class="text-lg font-bold text-purple-400 mb-4">🌐 External Tasks (Agent Posted) - {{ external_tasks|length }}</h2>
+            <div class="grid grid-cols-4 gap-3 mb-4">
+                <div class="bg-gray-800 rounded p-3">
+                    <div class="text-xl font-bold text-green-400">{{ ext_stats.open }}</div>
+                    <div class="text-gray-500 text-xs">Open</div>
+                </div>
+                <div class="bg-gray-800 rounded p-3">
+                    <div class="text-xl font-bold text-blue-400">{{ ext_stats.completed }}</div>
+                    <div class="text-gray-500 text-xs">Completed</div>
+                </div>
+                <div class="bg-gray-800 rounded p-3">
+                    <div class="text-xl font-bold text-yellow-400">{{ "{:,}".format(ext_stats.total_posted) }}</div>
+                    <div class="text-gray-500 text-xs">Total WATT Posted</div>
+                </div>
+                <div class="bg-gray-800 rounded p-3">
+                    <div class="text-xl font-bold text-green-400">{{ "{:,}".format(ext_stats.total_paid) }}</div>
+                    <div class="text-gray-500 text-xs">Total WATT Paid</div>
+                </div>
+            </div>
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-gray-400 border-b border-gray-700">
+                        <th class="text-left pb-2">ID</th>
+                        <th class="text-left pb-2">Title</th>
+                        <th class="text-right pb-2">WATT</th>
+                        <th class="text-left pb-2">Poster</th>
+                        <th class="text-left pb-2">Status</th>
+                        <th class="text-left pb-2">Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for task in external_tasks[-15:] | reverse %}
+                    <tr class="border-b border-gray-800">
+                        <td class="py-2 font-mono text-xs text-purple-400">{{ task.id }}</td>
+                        <td class="py-2">{{ task.title[:40] }}{% if task.title|length > 40 %}...{% endif %}</td>
+                        <td class="py-2 text-right font-mono text-green-400">{{ "{:,}".format(task.amount) }}</td>
+                        <td class="py-2 font-mono text-xs">{{ task.poster[:8] }}...</td>
+                        <td class="py-2">
+                            {% if task.status == 'open' %}
+                            <span class="px-2 py-1 bg-green-900 text-green-300 rounded text-xs">open</span>
+                            {% elif task.status == 'completed' %}
+                            <span class="px-2 py-1 bg-blue-900 text-blue-300 rounded text-xs">completed</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs">{{ task.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 text-gray-500 text-xs">{{ task.created_at[:10] }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bg-gray-900 rounded-lg p-6 mb-6 border border-purple-900/50">
+            <h2 class="text-lg font-bold text-purple-400 mb-2">🌐 External Tasks</h2>
+            <p class="text-gray-500">No external tasks posted yet. Agents can post tasks via POST /api/v1/tasks</p>
+        </div>
+        {% endif %}
         
         <!-- Pending Submissions -->
         {% if pending %}
@@ -1936,11 +2013,23 @@ def submissions():
         "rejected": len(rejected)
     }
     
+    # Load external tasks
+    ext_data = load_external_tasks()
+    external_tasks = ext_data.get("tasks", [])
+    ext_stats = {
+        "open": len([t for t in external_tasks if t.get("status") == "open"]),
+        "completed": len([t for t in external_tasks if t.get("status") == "completed"]),
+        "total_posted": sum(t.get("amount", 0) for t in external_tasks),
+        "total_paid": sum(t.get("amount", 0) for t in external_tasks if t.get("status") == "completed")
+    }
+    
     return render_template_string(SUBMISSIONS_HTML,
         stats=stats,
         pending=pending,
         paid=paid,
         rejected=rejected,
+        external_tasks=external_tasks,
+        ext_stats=ext_stats,
         message=message,
         error=error
     )
