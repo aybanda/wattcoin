@@ -1662,9 +1662,123 @@ def revoke_api_key(key_id):
 @admin_bp.route('/clear-data')
 @login_required
 def clear_data():
-    """Clear all reviews and payouts data."""
-    save_data({"reviews": {}, "payouts": []})
-    return redirect(url_for('admin.dashboard', message="All data cleared successfully"))
+    """Show clear data options page."""
+    message = request.args.get('message', '')
+    error = request.args.get('error', '')
+    
+    # Get current counts
+    bounty_data = load_data()
+    submissions_data = load_submissions()
+    external_data = load_external_tasks()
+    
+    counts = {
+        "bounty_reviews": len(bounty_data.get("reviews", {})),
+        "bounty_payouts": len(bounty_data.get("payouts", [])),
+        "task_submissions": len(submissions_data.get("submissions", [])),
+        "external_tasks": len(external_data.get("tasks", []))
+    }
+    
+    return render_template_string(CLEAR_DATA_HTML, counts=counts, message=message, error=error)
+
+@admin_bp.route('/clear-data/execute', methods=['POST'])
+@login_required
+def clear_data_execute():
+    """Execute data clearing based on selections."""
+    cleared = []
+    
+    if request.form.get('clear_bounty_reviews'):
+        save_data({"reviews": {}, "payouts": [], "history": []})
+        cleared.append("Bounty reviews")
+    
+    if request.form.get('clear_task_submissions'):
+        save_submissions({"submissions": []})
+        cleared.append("Task submissions")
+    
+    if request.form.get('clear_external_tasks'):
+        # Save empty external tasks
+        try:
+            os.makedirs(os.path.dirname(EXTERNAL_TASKS_FILE), exist_ok=True)
+            with open(EXTERNAL_TASKS_FILE, 'w') as f:
+                json.dump({"tasks": []}, f, indent=2)
+            cleared.append("External tasks")
+        except Exception as e:
+            return redirect(url_for('admin.clear_data', error=f"Failed to clear external tasks: {e}"))
+    
+    if cleared:
+        return redirect(url_for('admin.clear_data', message=f"Cleared: {', '.join(cleared)}"))
+    else:
+        return redirect(url_for('admin.clear_data', error="Nothing selected"))
+
+CLEAR_DATA_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Data - WattCoin Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>body { background: #0a0a0a; color: #e5e5e5; }</style>
+</head>
+<body class="p-8">
+    <div class="max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-green-400">⚡ Clear Test Data</h1>
+                <p class="text-gray-500 text-sm">Remove test entries from dashboard</p>
+            </div>
+            <a href="{{ url_for('admin.dashboard') }}" class="text-gray-400 hover:text-gray-200 text-sm">← Back</a>
+        </div>
+        
+        {% if message %}
+        <div class="bg-green-900/50 border border-green-500 text-green-300 px-4 py-2 rounded mb-6">{{ message }}</div>
+        {% endif %}
+        
+        {% if error %}
+        <div class="bg-red-900/50 border border-red-500 text-red-300 px-4 py-2 rounded mb-6">{{ error }}</div>
+        {% endif %}
+        
+        <form method="POST" action="{{ url_for('admin.clear_data_execute') }}" class="bg-gray-900 rounded-lg p-6">
+            <p class="text-yellow-400 text-sm mb-6">⚠️ This action cannot be undone. Only clear test data, not real usage.</p>
+            
+            <div class="space-y-4">
+                <label class="flex items-center gap-3 p-4 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-750">
+                    <input type="checkbox" name="clear_bounty_reviews" class="w-5 h-5 rounded">
+                    <div>
+                        <div class="font-medium">Bounty Reviews</div>
+                        <div class="text-gray-500 text-sm">{{ counts.bounty_reviews }} reviews, {{ counts.bounty_payouts }} payouts</div>
+                    </div>
+                </label>
+                
+                <label class="flex items-center gap-3 p-4 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-750">
+                    <input type="checkbox" name="clear_task_submissions" class="w-5 h-5 rounded">
+                    <div>
+                        <div class="font-medium">Task Submissions</div>
+                        <div class="text-gray-500 text-sm">{{ counts.task_submissions }} submissions</div>
+                    </div>
+                </label>
+                
+                <label class="flex items-center gap-3 p-4 bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-750">
+                    <input type="checkbox" name="clear_external_tasks" class="w-5 h-5 rounded">
+                    <div>
+                        <div class="font-medium">External Tasks</div>
+                        <div class="text-gray-500 text-sm">{{ counts.external_tasks }} tasks (agent-posted)</div>
+                    </div>
+                </label>
+            </div>
+            
+            <div class="mt-6 flex gap-3">
+                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-medium px-6 py-2 rounded-lg">
+                    Clear Selected
+                </button>
+                <a href="{{ url_for('admin.dashboard') }}" class="bg-gray-700 hover:bg-gray-600 text-white font-medium px-6 py-2 rounded-lg">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
+"""
 
 # =============================================================================
 # SUBMISSIONS PAGE
