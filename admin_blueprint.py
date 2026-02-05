@@ -2216,9 +2216,6 @@ def approve_submission(sub_id):
     
     return redirect(url_for('admin.submissions', error="Submission not found"))
 
-@admin_bp.route('/submissions/reject/<sub_id>', methods=['POST'])
-@login_required
-
 @admin_bp.route('/process_payments', methods=['POST'])
 def process_payment_queue():
     """Process all pending payments in the queue"""
