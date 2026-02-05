@@ -283,6 +283,49 @@ def execute_auto_payment(pr_number, wallet, amount):
         return None, error_msg
 
 
+
+def queue_payment(pr_number, wallet, amount):
+    """
+    Add payment to queue for processing after deployment.
+    Prevents payments during deployment which causes container restarts.
+    """
+    import json
+    import os
+    from datetime import datetime
+    
+    queue_file = "/app/data/payment_queue.json"
+    
+    # Ensure data directory exists
+    os.makedirs("/app/data", exist_ok=True)
+    
+    # Load existing queue
+    queue = []
+    if os.path.exists(queue_file):
+        try:
+            with open(queue_file, 'r') as f:
+                queue = json.load(f)
+        except:
+            queue = []
+    
+    # Add new payment
+    payment = {
+        "pr_number": pr_number,
+        "wallet": wallet,
+        "amount": amount,
+        "queued_at": datetime.utcnow().isoformat(),
+        "status": "pending"
+    }
+    
+    queue.append(payment)
+    
+    # Save queue
+    with open(queue_file, 'w') as f:
+        json.dump(queue, f, indent=2)
+    
+    app.logger.info(f"[QUEUE] Payment queued: PR #{pr_number}, {amount:,} WATT to {wallet[:8]}...")
+    
+    return True
+
 def handle_pr_review_trigger(pr_number, action):
     """
     Handle PR opened or synchronized - trigger Grok review and auto-merge if passed.
