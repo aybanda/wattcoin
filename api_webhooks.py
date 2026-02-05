@@ -186,34 +186,102 @@ def auto_merge_pr(pr_number, review_score):
 
 def execute_auto_payment(pr_number, wallet, amount):
     """
-    Execute payment automatically using bounty_auto_pay.py
+    Execute payment directly to contributor wallet.
     Returns: (tx_signature, error)
     """
-    import subprocess
+    import base58
+    from solana.rpc.api import Client
+    from solders.transaction import Transaction
+    from solders.message import Message
+    from solders.pubkey import Pubkey
+    from solders.keypair import Keypair
+    from spl.token.instructions import get_associated_token_address, transfer_checked, TransferCheckedParams
+    from spl.token.constants import TOKEN_2022_PROGRAM_ID
     
     try:
-        # Call bounty_auto_pay.py script
-        result = subprocess.run(
-            ["python3", "bounty_auto_pay.py", str(pr_number)],
-            capture_output=True,
-            text=True,
-            timeout=60
+        # Configuration
+        SOLANA_RPC = "https://api.mainnet-beta.solana.com"
+        WATT_MINT = "Gpmbh4PoQnL1kNgpMYDED3iv4fczcr7d3qNBLf8rpump"
+        WATT_DECIMALS = 6
+        
+        # Get bounty wallet keypair from env
+        private_key_b58 = os.getenv("BOUNTY_WALLET_PRIVATE_KEY", "")
+        if not private_key_b58:
+            return None, "BOUNTY_WALLET_PRIVATE_KEY not configured in Railway"
+        
+        print(f"[PAYMENT] Initializing payment: {amount:,} WATT to {wallet[:8]}...{wallet[-8:]}", flush=True)
+        
+        # Decode private key
+        try:
+            keypair_bytes = base58.b58decode(private_key_b58)
+            payer = Keypair.from_bytes(keypair_bytes)
+            print(f"[PAYMENT] Payer wallet: {str(payer.pubkey())[:8]}...{str(payer.pubkey())[-8:]}", flush=True)
+        except Exception as e:
+            return None, f"Invalid BOUNTY_WALLET_PRIVATE_KEY: {e}"
+        
+        # Initialize Solana client
+        client = Client(SOLANA_RPC)
+        print(f"[PAYMENT] Connected to Solana RPC", flush=True)
+        
+        # Get token accounts
+        mint_pubkey = Pubkey.from_string(WATT_MINT)
+        sender_ata = get_associated_token_address(payer.pubkey(), mint_pubkey)
+        
+        try:
+            recipient_pubkey = Pubkey.from_string(wallet)
+        except Exception as e:
+            return None, f"Invalid recipient wallet address: {e}"
+        
+        recipient_ata = get_associated_token_address(recipient_pubkey, mint_pubkey)
+        
+        print(f"[PAYMENT] Sender ATA: {str(sender_ata)[:8]}...", flush=True)
+        print(f"[PAYMENT] Recipient ATA: {str(recipient_ata)[:8]}...", flush=True)
+        
+        # Convert amount to lamports
+        amount_lamports = int(amount * (10 ** WATT_DECIMALS))
+        print(f"[PAYMENT] Amount: {amount_lamports} lamports ({amount:,.2f} WATT)", flush=True)
+        
+        # Create transfer instruction
+        transfer_ix = transfer_checked(
+            TransferCheckedParams(
+                program_id=TOKEN_2022_PROGRAM_ID,
+                source=sender_ata,
+                mint=mint_pubkey,
+                dest=recipient_ata,
+                owner=payer.pubkey(),
+                amount=amount_lamports,
+                decimals=WATT_DECIMALS
+            )
         )
         
-        if result.returncode == 0:
-            # Extract TX signature from output
-            output = result.stdout
-            import re
-            tx_match = re.search(r'TX: ([A-Za-z0-9]{87,88})', output)
-            if tx_match:
-                return tx_match.group(1), None
-            else:
-                return "success", None  # Payment succeeded but couldn't extract TX
-        else:
-            return None, f"Payment failed: {result.stderr}"
-    
+        # Get recent blockhash
+        recent_blockhash_resp = client.get_latest_blockhash()
+        recent_blockhash = recent_blockhash_resp.value.blockhash
+        print(f"[PAYMENT] Recent blockhash obtained", flush=True)
+        
+        # Create and sign transaction
+        message = Message.new_with_blockhash(
+            [transfer_ix],
+            payer.pubkey(),
+            recent_blockhash
+        )
+        
+        transaction = Transaction([payer], message, recent_blockhash)
+        print(f"[PAYMENT] Transaction created and signed", flush=True)
+        
+        # Send transaction
+        print(f"[PAYMENT] Sending transaction to network...", flush=True)
+        tx_resp = client.send_transaction(transaction)
+        tx_signature = str(tx_resp.value)
+        
+        print(f"[PAYMENT] ✅ Payment successful! TX: {tx_signature}", flush=True)
+        return tx_signature, None
+        
     except Exception as e:
-        return None, f"Payment error: {e}"
+        error_msg = f"Payment execution failed: {str(e)}"
+        print(f"[PAYMENT] ❌ {error_msg}", flush=True)
+        return None, error_msg
+
 
 def handle_pr_review_trigger(pr_number, action):
     """
