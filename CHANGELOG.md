@@ -1,3 +1,51 @@
+## [February 5, 2026] - Bounty Automation System
+- **Action**: Automated bounty payment system
+- **Version**: v2.5.0
+- **Files**: bounty_auto_pay.py (new), api_reputation.py, bridge_web.py
+- **Summary**: Complete automation of bounty payment workflow
+  - `bounty_auto_pay.py` - CLI script for one-command payouts
+  - Usage: `python bounty_auto_pay.py <pr_number>`
+  - Auto-fetches PR details, calculates amount, signs transaction, updates records
+  - Eliminates manual Phantom wallet steps
+  - Integrated with api_reputation.py for leaderboard updates
+  - New endpoint: `GET /api/v1/bounty-stats` - Real-time bounty statistics
+  - Historical contributor preservation: aybanda, njg7194, SudarshanSuryaprakash
+  - Fixed leaderboard to merge historical data with new dashboard payouts
+  - No data loss - all past contributors maintained
+- **Requested by**: Chris
+
+## [February 5, 2026] - Path-Based Deploy Rules
+- **Action**: Railway deployment optimization
+- **Version**: railway.toml v2.0.0
+- **Files**: railway.toml
+- **Summary**: Intelligent deploy triggering to prevent unnecessary redeploys
+  - Only deploys when critical backend files change (api_*.py, bridge_web.py, requirements.txt)
+  - Ignores documentation, tests, client code, bounty tracking files
+  - Prevents Railway redeploy on every bounty merge
+  - Saves costs and reduces disruption
+  - Batches non-critical updates naturally
+  - Include rules: 10 core backend files
+  - Exclude rules: docs/**, *.md, tests/**, bounty/**, wattnode/**, tipping/**
+- **Impact**: Bounty PRs merged without triggering redeploy (unless they touch backend)
+- **Requested by**: Chris
+
+## [February 5, 2026] - WattNode GUI v2.0
+- **Action**: Major GUI upgrade with enhanced features
+- **Version**: WattNode v2.0.0
+- **Files**: wattnode/wattnode_gui.py, wattnode/requirements_gui.txt
+- **Summary**: Professional desktop application with advanced controls
+  - **Tabbed Interface**: Dashboard, Settings, Job History tabs
+  - **CPU Control**: Slider to limit CPU usage (1-100%)
+  - **Earnings Graph**: Real-time matplotlib chart showing WATT earned over time
+  - **Job History**: Detailed log of completed jobs with amounts
+  - **Export Data**: Save earnings/job data to CSV
+  - **Dark Theme**: Polished UI matching wattcoin.org branding
+  - **Dependencies**: Added matplotlib for visualization
+  - **Solana Updates**: Fixed transaction signing for modern solana-py/solders API
+  - Updated to solders>=0.18.0 for proper signature handling
+- **Model Updates**: Switched to grok-code-fast-1 and grok-4-1-fast-reasoning
+- **Requested by**: Chris
+
 ## [February 4, 2026] - Frontend SSR Migration (Next.js)
 - **Action**: Migrated wattcoin-web from Vite SPA to Next.js 14 App Router
 - **Version**: wattcoin-web v3.0.0
@@ -436,3 +484,4 @@
 
 ---
 *This changelog tracks all implementation changes to the WattCoin repository for audit purposes.*
+
