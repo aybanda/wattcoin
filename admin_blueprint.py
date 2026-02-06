@@ -2247,7 +2247,7 @@ def process_payment_queue():
         review_score = payment.get("review_score")
         
         # Import execute_auto_payment from api_webhooks
-        from api_webhooks import execute_auto_payment
+        from api_webhooks import execute_auto_payment, post_github_comment
         
         # Execute payment
         tx_signature, error = execute_auto_payment(pr_number, wallet, amount, bounty_issue_id=bounty_issue_id, review_score=review_score)
@@ -2257,6 +2257,17 @@ def process_payment_queue():
             payment["tx_signature"] = tx_signature
             payment["processed_at"] = datetime.utcnow().isoformat()
             results.append(f"✅ PR #{pr_number}: {amount:,} WATT → {tx_signature[:16]}...")
+            
+            # Post TX confirmation comment to PR
+            try:
+                comment = (
+                    f"✅ **Bounty paid!** {amount:,} WATT sent.\n\n"
+                    f"**TX:** [View on Solscan](https://solscan.io/tx/{tx_signature})\n\n"
+                    f"Thank you for contributing to the WattCoin agent economy! ⚡🤖"
+                )
+                post_github_comment(pr_number, comment)
+            except Exception as comment_err:
+                print(f"[QUEUE] Warning: Failed to post PR comment for #{pr_number}: {comment_err}", flush=True)
         else:
             payment["status"] = "failed"
             payment["error"] = error
