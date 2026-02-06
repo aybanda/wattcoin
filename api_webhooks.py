@@ -379,7 +379,7 @@ def execute_auto_payment(pr_number, wallet, amount, bounty_issue_id=None, review
 
 
 
-def queue_payment(pr_number, wallet, amount, bounty_issue_id=None, review_score=None):
+def queue_payment(pr_number, wallet, amount, bounty_issue_id=None, review_score=None, author=None):
     """
     Add payment to queue for processing after deployment.
     Prevents payments during deployment which causes container restarts.
@@ -409,6 +409,7 @@ def queue_payment(pr_number, wallet, amount, bounty_issue_id=None, review_score=
         "amount": amount,
         "bounty_issue_id": bounty_issue_id,
         "review_score": review_score,
+        "author": author,
         "queued_at": datetime.utcnow().isoformat(),
         "status": "pending"
     }
@@ -682,9 +683,10 @@ An admin will review and process the payout manually if applicable.
         return jsonify({"message": "No bounty amount found"}), 200
     
     # Execute payment automatically
+    pr_author = pr.get("user", {}).get("login", "unknown")
     post_github_comment(pr_number, f"🚀 **Processing payment...** {amount:,} WATT to `{wallet[:8]}...{wallet[-8:]}`")
     
-    queue_payment(pr_number, wallet, amount, bounty_issue_id=bounty_issue_id, review_score=review_result.get("score"))
+    queue_payment(pr_number, wallet, amount, bounty_issue_id=bounty_issue_id, review_score=review_result.get("score"), author=pr_author)
     
     # Payment queued - comment will be posted by process_payment_queue() after confirmation
     log_security_event("payment_queued", {
@@ -756,6 +758,46 @@ def check_payment_already_sent(pr_number, recipient_wallet, amount):
         return None
 
 
+def record_completed_payout(pr_number, wallet, amount, tx_signature, bounty_issue_id=None, review_score=None, author=None):
+    """
+    Record a completed auto-payment in pr_payouts.json so leaderboard/stats are accurate.
+    """
+    try:
+        payouts = load_json_data(PR_PAYOUTS_FILE, default={"payouts": []})
+        
+        # Check for duplicate
+        for p in payouts["payouts"]:
+            if p.get("pr_number") == pr_number and p.get("status") == "paid":
+                print(f"[RECORD] PR #{pr_number} already recorded, skipping", flush=True)
+                return
+        
+        payout_id = len(payouts["payouts"]) + 1
+        
+        payout = {
+            "id": payout_id,
+            "pr_number": pr_number,
+            "author": author or "unknown",
+            "wallet": wallet,
+            "amount": amount,
+            "bounty_issue_id": bounty_issue_id,
+            "status": "paid",
+            "queued_at": __import__('datetime').datetime.utcnow().isoformat() + "Z",
+            "approved_by": "auto",
+            "approved_at": __import__('datetime').datetime.utcnow().isoformat() + "Z",
+            "tx_signature": tx_signature,
+            "paid_at": __import__('datetime').datetime.utcnow().isoformat() + "Z",
+            "review_score": review_score,
+            "payment_method": "auto_queue"
+        }
+        
+        payouts["payouts"].append(payout)
+        save_json_data(PR_PAYOUTS_FILE, payouts)
+        print(f"[RECORD] ✅ Payout recorded: PR #{pr_number}, {amount:,} WATT to {author or 'unknown'}", flush=True)
+        
+    except Exception as e:
+        print(f"[RECORD] ❌ Failed to record payout: {e}", flush=True)
+
+
 def process_payment_queue():
     """
     Process pending payments from queue file.
@@ -802,6 +844,14 @@ def process_payment_queue():
             payment["completed_at"] = __import__('datetime').datetime.utcnow().isoformat()
             payment["note"] = "Found existing on-chain TX during retry"
             
+            # Record in payout ledger for leaderboard
+            record_completed_payout(
+                pr_number, wallet, amount, existing_tx,
+                bounty_issue_id=bounty_issue_id,
+                review_score=review_score,
+                author=payment.get("author")
+            )
+            
             # Post success comment
             try:
                 solscan_url = f"https://solscan.io/tx/{existing_tx}"
@@ -837,6 +887,14 @@ def process_payment_queue():
                     f"Thank you for your contribution! ⚡🤖"
                 )
                 print(f"[QUEUE] ✅ PR #{pr_number} paid: {tx_sig[:20]}...", flush=True)
+                
+                # Record in payout ledger for leaderboard
+                record_completed_payout(
+                    pr_number, wallet, amount, tx_sig,
+                    bounty_issue_id=bounty_issue_id,
+                    review_score=review_score,
+                    author=payment.get("author")
+                )
                 
             elif tx_sig and error:
                 # TX sent but confirmation uncertain
