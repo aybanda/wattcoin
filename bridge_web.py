@@ -902,7 +902,7 @@ def scrape():
                     
                     if job_result.get('routed'):
                         job_id = job_result.get('job_id')
-                        node_result = wait_for_job_result(job_id, timeout=30)
+                        node_result = wait_for_job_result(job_id, timeout=60)
                         
                         if node_result.get('success'):
                             result = node_result.get('result', {})
