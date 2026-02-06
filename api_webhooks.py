@@ -684,62 +684,19 @@ An admin will review and process the payout manually if applicable.
     post_github_comment(pr_number, f"🚀 **Processing payment...** {amount:,} WATT to `{wallet[:8]}...{wallet[-8:]}`")
     
     queue_payment(pr_number, wallet, amount, bounty_issue_id=bounty_issue_id, review_score=review_result.get("score"))
-    tx_signature = None
-    payment_error = None
     
-    if payment_error:
-        # Payment failed - queue for manual review
-        payout_id = queue_payout(pr_number, wallet, amount, bounty_issue_id, review_data)
-        
-        comment = f"""## ⚠️ Auto-Payment Failed
-
-**Bounty Amount**: {amount:,} WATT
-**Payout Wallet**: `{wallet[:8]}...{wallet[-8:]}`
-**Error**: {payment_error}
-
-Your payout has been queued (#{payout_id}) for manual processing by an admin.
-"""
-        post_github_comment(pr_number, comment)
-        
-        log_security_event("auto_payment_failed", {
-            "pr_number": pr_number,
-            "wallet": wallet,
-            "amount": amount,
-            "error": payment_error,
-            "payout_id": payout_id
-        })
-        
-        return jsonify({
-            "message": "Payment failed, queued for manual review",
-            "payout_id": payout_id
-        }), 200
-    
-    # Payment succeeded!
-    comment = f"""## 🎉 Payment Sent!
-
-**Bounty Amount**: {amount:,} WATT
-**Payout Wallet**: `{wallet}`
-**Review Score**: {review_result.get('score', 'N/A')}/10
-**TX Signature**: [{tx_signature[:8]}...{tx_signature[-8:]}](https://solscan.io/tx/{tx_signature})
-
-Thank you for your contribution! 🚀
-"""
-    
-    post_github_comment(pr_number, comment)
-    
-    log_security_event("auto_payment_success", {
+    # Payment queued - comment will be posted by process_payment_queue() after confirmation
+    log_security_event("payment_queued", {
         "pr_number": pr_number,
         "wallet": wallet,
         "amount": amount,
-        "tx_signature": tx_signature,
         "bounty_issue_id": bounty_issue_id
     })
     
     return jsonify({
-        "message": "Payment sent",
+        "message": "Payment queued for processing",
         "amount": amount,
-        "wallet": wallet,
-        "tx_signature": tx_signature
+        "wallet": wallet
     }), 200
 
 # =============================================================================
