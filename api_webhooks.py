@@ -701,6 +701,177 @@ An admin will review and process the payout manually if applicable.
     }), 200
 
 # =============================================================================
+# PAYMENT QUEUE PROCESSOR
+# =============================================================================
+
+def check_payment_already_sent(pr_number, recipient_wallet, amount):
+    """
+    Safety check: query on-chain to see if payment was already sent.
+    Looks at bounty wallet's recent TXs for a memo matching this PR.
+    Returns tx_signature if found, None otherwise.
+    """
+    import requests as req
+    try:
+        bounty_wallet = os.getenv("BOUNTY_WALLET_ADDRESS", "7vvNkG3JF3JpxLEavqZSkc5T3n9hHR98Uw23fbWdXVSF")
+        rpc_url = "https://api.mainnet-beta.solana.com"
+        
+        # Get recent signatures from bounty wallet (last 10)
+        resp = req.post(rpc_url, json={
+            "jsonrpc": "2.0", "id": 1,
+            "method": "getSignaturesForAddress",
+            "params": [bounty_wallet, {"limit": 10}]
+        }, timeout=10)
+        
+        sigs = resp.json().get("result", [])
+        
+        for sig_info in sigs:
+            sig = sig_info["signature"]
+            if sig_info.get("err"):
+                continue
+            
+            # Fetch full TX to check memo
+            tx_resp = req.post(rpc_url, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getTransaction",
+                "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}]
+            }, timeout=10)
+            
+            tx_data = tx_resp.json().get("result")
+            if not tx_data:
+                continue
+            
+            # Check log messages for our memo pattern
+            log_messages = tx_data.get("meta", {}).get("logMessages", [])
+            memo_match = f"PR #{pr_number}"
+            
+            for log in log_messages:
+                if memo_match in log:
+                    print(f"[QUEUE] ✅ Found existing payment for PR #{pr_number}: {sig[:20]}...", flush=True)
+                    return sig
+        
+        return None
+        
+    except Exception as e:
+        print(f"[QUEUE] ⚠️ On-chain check failed: {e}", flush=True)
+        return None
+
+
+def process_payment_queue():
+    """
+    Process pending payments from queue file.
+    Called on startup after deploy. Checks on-chain before resending.
+    """
+    import json
+    
+    queue_file = "/app/data/payment_queue.json"
+    
+    if not os.path.exists(queue_file):
+        print("[QUEUE] No payment queue file found", flush=True)
+        return
+    
+    try:
+        with open(queue_file, 'r') as f:
+            queue = json.load(f)
+    except Exception as e:
+        print(f"[QUEUE] Error loading queue: {e}", flush=True)
+        return
+    
+    pending = [p for p in queue if p.get("status") == "pending"]
+    if not pending:
+        print("[QUEUE] No pending payments in queue", flush=True)
+        return
+    
+    print(f"[QUEUE] Processing {len(pending)} pending payment(s)...", flush=True)
+    
+    for payment in pending:
+        pr_number = payment["pr_number"]
+        wallet = payment["wallet"]
+        amount = payment["amount"]
+        bounty_issue_id = payment.get("bounty_issue_id")
+        review_score = payment.get("review_score")
+        
+        print(f"[QUEUE] Processing PR #{pr_number}: {amount:,} WATT to {wallet[:8]}...", flush=True)
+        
+        # SAFETY: Check if payment already landed on-chain
+        existing_tx = check_payment_already_sent(pr_number, wallet, amount)
+        
+        if existing_tx:
+            # Already paid — mark complete, don't resend
+            payment["status"] = "completed"
+            payment["tx_signature"] = existing_tx
+            payment["completed_at"] = __import__('datetime').datetime.utcnow().isoformat()
+            payment["note"] = "Found existing on-chain TX during retry"
+            
+            # Post success comment
+            try:
+                solscan_url = f"https://solscan.io/tx/{existing_tx}"
+                post_github_comment(pr_number,
+                    f"## ✅ Payment Confirmed\n\n"
+                    f"**{amount:,} WATT** sent to `{wallet[:8]}...{wallet[-8:]}`\n\n"
+                    f"🔗 [View on Solscan]({solscan_url})\n\n"
+                    f"*Payment was recovered after server restart.*"
+                )
+            except Exception as e:
+                print(f"[QUEUE] Comment failed for PR #{pr_number}: {e}", flush=True)
+            
+            continue
+        
+        # Not yet paid — execute payment
+        try:
+            tx_sig, error = execute_auto_payment(
+                pr_number, wallet, amount,
+                bounty_issue_id=bounty_issue_id,
+                review_score=review_score
+            )
+            
+            if tx_sig and not error:
+                payment["status"] = "completed"
+                payment["tx_signature"] = tx_sig
+                payment["completed_at"] = __import__('datetime').datetime.utcnow().isoformat()
+                
+                solscan_url = f"https://solscan.io/tx/{tx_sig}"
+                post_github_comment(pr_number,
+                    f"## ✅ Payment Confirmed\n\n"
+                    f"**{amount:,} WATT** sent to `{wallet[:8]}...{wallet[-8:]}`\n\n"
+                    f"🔗 [View on Solscan]({solscan_url})\n\n"
+                    f"Thank you for your contribution! ⚡🤖"
+                )
+                print(f"[QUEUE] ✅ PR #{pr_number} paid: {tx_sig[:20]}...", flush=True)
+                
+            elif tx_sig and error:
+                # TX sent but confirmation uncertain
+                payment["status"] = "unconfirmed"
+                payment["tx_signature"] = tx_sig
+                payment["error"] = error
+                print(f"[QUEUE] ⚠️ PR #{pr_number} TX sent but unconfirmed: {error}", flush=True)
+                
+            else:
+                payment["status"] = "failed"
+                payment["error"] = error
+                payment["failed_at"] = __import__('datetime').datetime.utcnow().isoformat()
+                
+                post_github_comment(pr_number,
+                    f"## ❌ Auto-Payment Failed\n\n"
+                    f"Error: {error}\n\n"
+                    f"Admin will process this payment manually."
+                )
+                print(f"[QUEUE] ❌ PR #{pr_number} payment failed: {error}", flush=True)
+                
+        except Exception as e:
+            payment["status"] = "failed"
+            payment["error"] = str(e)
+            print(f"[QUEUE] ❌ PR #{pr_number} exception: {e}", flush=True)
+    
+    # Save updated queue
+    try:
+        with open(queue_file, 'w') as f:
+            json.dump(queue, f, indent=2)
+        print(f"[QUEUE] Queue updated and saved", flush=True)
+    except Exception as e:
+        print(f"[QUEUE] Error saving queue: {e}", flush=True)
+
+
+# =============================================================================
 # HEALTH CHECK
 # =============================================================================
 
