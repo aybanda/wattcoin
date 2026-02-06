@@ -1270,7 +1270,7 @@ def unified_pricing():
             }
         },
         "payment": {
-            "wallet": "7vvNkG3JF3JpxLEavqZSkc5T3n9hHR98Uw23fbWdXVSF",
+            "wallet": os.getenv("BOUNTY_WALLET_ADDRESS", ""),
             "token_mint": "Gpmbh4PoQnL1kNgpMYDED3iv4fczcr7d3qNBLf8rpump",
             "tx_max_age_minutes": 10
         },
