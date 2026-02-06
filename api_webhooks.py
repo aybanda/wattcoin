@@ -170,8 +170,8 @@ def auto_merge_pr(pr_number, review_score):
             url,
             headers=github_headers(),
             json={
-                "commit_title": f"Auto-merge PR #{pr_number} (AI score: {review_score}/100)",
-                "commit_message": f"Automatically merged after passing AI review with score {review_score}/100",
+                "commit_title": f"Auto-merge PR #{pr_number} (AI score: {review_score}/10)",
+                "commit_message": f"Automatically merged after passing AI review with score {review_score}/10",
                 "merge_method": "squash"
             },
             timeout=15
@@ -454,7 +454,7 @@ def handle_pr_review_trigger(pr_number, action):
         if merged:
             post_github_comment(
                 pr_number,
-                f"✅ **Auto-merged!** AI score: {score}/100\n\n"
+                f"✅ **Auto-merged!** AI score: {score}/10\n\n"
                 f"Payment will be processed automatically after merge completes."
             )
             
@@ -465,7 +465,7 @@ def handle_pr_review_trigger(pr_number, action):
         else:
             post_github_comment(
                 pr_number,
-                f"⚠️ **Review passed** (score: {score}/100) but auto-merge failed: {merge_error}\n\n"
+                f"⚠️ **Review passed** (score: {score}/10) but auto-merge failed: {merge_error}\n\n"
                 f"Please merge manually."
             )
     
