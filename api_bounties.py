@@ -23,7 +23,7 @@ bounties_bp = Blueprint('bounties', __name__)
 # Config
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 REPO = "WattCoin-Org/wattcoin"
-STAKE_WALLET = "7vvNkG3JF3JpxLEavqZSkc5T3n9hHR98Uw23fbWdXVSF"
+STAKE_WALLET = os.getenv("BOUNTY_WALLET_ADDRESS", "7vvNkG3JF3JpxLEavqZSkc5T3n9hHR98Uw23fbWdXVSF")
 DOCS_URL = "https://github.com/WattCoin-Org/wattcoin/blob/main/CONTRIBUTING.md"
 CACHE_TTL = 300  # 5 minutes
 
@@ -231,3 +231,4 @@ def list_bounties():
         "docs": DOCS_URL,
         "cached_until": datetime.fromtimestamp(_bounties_cache["expires"]).isoformat() + "Z" if _bounties_cache["expires"] else None
     })
+
