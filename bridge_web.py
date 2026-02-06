@@ -1,5 +1,5 @@
 """
-Grok-Claude Bridge - Web Interface v2.1.0
+AI-Claude Bridge - Web Interface v2.2.0
 Human-in-the-loop AI collaboration for WattCoin project
 + Proxy endpoint for external API calls (Moltbook, etc.)
 + Admin dashboard for bounty management
@@ -154,20 +154,20 @@ logger.info("Blueprint-specific rate limits applied successfully")
 # =============================================================================
 # API CLIENTS
 # =============================================================================
-GROK_API_KEY = os.getenv("GROK_API_KEY")
+AI_API_KEY = os.getenv("AI_API_KEY")
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 PROXY_SECRET = os.getenv("PROXY_SECRET", "wattcoin-proxy-secret-change-me")
 
-if not GROK_API_KEY or not CLAUDE_API_KEY:
-    print("WARNING: Set GROK_API_KEY and CLAUDE_API_KEY environment variables")
+if not AI_API_KEY or not CLAUDE_API_KEY:
+    print("WARNING: Set AI_API_KEY and CLAUDE_API_KEY environment variables")
 
-grok_client = None
+ai_client = None
 claude_client = None
 
 def init_clients():
-    global grok_client, claude_client
-    if GROK_API_KEY:
-        grok_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
+    global ai_client, claude_client
+    if AI_API_KEY:
+        ai_client = OpenAI(api_key=AI_API_KEY, base_url="https://api.x.ai/v1")
     if CLAUDE_API_KEY:
         claude_client = Anthropic(api_key=CLAUDE_API_KEY)
 
@@ -402,7 +402,7 @@ WattCoin (WATT) is a pure utility token on Solana for AI/robot automation paymen
 - Status: LIVE on mainnet (Jan 31, 2026)
 """
 
-GROK_SYSTEM = f"""You are the Strategy Consultant for the WattCoin project.
+AI_SYSTEM = f"""You are the Strategy Consultant for the WattCoin project.
 Your role: High-level strategy, market analysis, tokenomics advice, launch planning.
 Project context: {WATTCOIN_CONTEXT}
 Keep responses focused and actionable. You're collaborating with Claude (implementation/coder)."""
@@ -410,16 +410,16 @@ Keep responses focused and actionable. You're collaborating with Claude (impleme
 CLAUDE_SYSTEM = f"""You are the Implementation Lead for the WattCoin project.
 Your role: Technical implementation, coding, smart contracts, infrastructure.
 Project context: {WATTCOIN_CONTEXT}
-Keep responses focused and actionable. You're collaborating with Grok (strategy consultant)."""
+Keep responses focused and actionable. You're collaborating with AI strategy consultant."""
 
-def query_grok(prompt, history=[]):
-    if not grok_client:
-        return "Error: Grok API key not configured"
-    messages = [{"role": "system", "content": GROK_SYSTEM}]
+def query_ai(prompt, history=[]):
+    if not ai_client:
+        return "Error: AI API key not configured"
+    messages = [{"role": "system", "content": AI_SYSTEM}]
     messages.extend(history)
     messages.append({"role": "user", "content": prompt})
     
-    response = grok_client.chat.completions.create(
+    response = ai_client.chat.completions.create(
         model="grok-3",
         messages=messages,
         max_tokens=2048
@@ -449,7 +449,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WattCoin - Grok/Claude Bridge</title>
+    <title>WattCoin - AI/Claude Bridge</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
@@ -482,10 +482,10 @@ HTML_TEMPLATE = """
             background: #1a1a1a; border-radius: 8px; padding: 20px; 
             margin-bottom: 20px; border-left: 4px solid #333;
         }
-        .response-box.grok { border-left-color: #ff6600; }
+        .response-box.ai { border-left-color: #ff6600; }
         .response-box.claude { border-left-color: #00aaff; }
         .response-box h3 { margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
-        .response-box.grok h3 { color: #ff6600; }
+        .response-box.ai h3 { color: #ff6600; }
         .response-box.claude h3 { color: #00aaff; }
         .response-content { 
             white-space: pre-wrap; line-height: 1.6; 
@@ -512,7 +512,7 @@ HTML_TEMPLATE = """
     <div class="admin-link"><a href="/admin">🔐 Admin Dashboard</a></div>
     
     <h1>⚡ WattCoin Bridge v1.2</h1>
-    <p class="subtitle">Grok (Strategy) ↔ Claude (Implementation) | Proxy: Active</p>
+    <p class="subtitle">AI (Strategy) ↔ Claude (Implementation) | Proxy: Active</p>
     
     {% if status %}
     <div class="status {{ status.type }}">{{ status.message }}</div>
@@ -522,7 +522,7 @@ HTML_TEMPLATE = """
         <form method="POST" action="/query" id="mainForm">
             <textarea name="prompt" placeholder="Enter your topic or question for the AI collaboration..." required>{{ prompt or '' }}</textarea>
             <div class="buttons">
-                <button type="submit" class="btn btn-primary">🚀 Send to Grok</button>
+                <button type="submit" class="btn btn-primary">🚀 Send to AI</button>
                 <button type="button" class="btn btn-secondary" onclick="clearHistory()">🗑️ Clear History</button>
             </div>
         </form>
@@ -532,19 +532,19 @@ HTML_TEMPLATE = """
         <span class="spinner">⚡</span> Processing...
     </div>
     
-    {% if grok_response %}
-    <div class="response-box grok">
-        <h3>🤖 GROK (Strategy)</h3>
-        <div class="response-content">{{ grok_response }}</div>
+    {% if ai_response %}
+    <div class="response-box ai">
+        <h3>🤖 AI (Strategy)</h3>
+        <div class="response-content">{{ ai_response }}</div>
         <div class="buttons">
             <form method="POST" action="/send-to-claude" style="display:inline;">
-                <input type="hidden" name="grok_response" value="{{ grok_response }}">
+                <input type="hidden" name="ai_response" value="{{ ai_response }}">
                 <input type="hidden" name="original_prompt" value="{{ prompt }}">
                 <button type="submit" class="btn btn-primary">✅ Send to Claude</button>
             </form>
             <button type="button" class="btn btn-secondary" onclick="showEdit()">✏️ Edit Prompt</button>
             <form method="POST" action="/skip-claude" style="display:inline;">
-                <input type="hidden" name="grok_response" value="{{ grok_response }}">
+                <input type="hidden" name="ai_response" value="{{ ai_response }}">
                 <input type="hidden" name="original_prompt" value="{{ prompt }}">
                 <button type="submit" class="btn btn-secondary">⏭️ Skip Claude</button>
             </form>
@@ -552,7 +552,7 @@ HTML_TEMPLATE = """
         <div id="editPrompt">
             <form method="POST" action="/send-to-claude">
                 <textarea name="custom_prompt" placeholder="Custom prompt for Claude..."></textarea>
-                <input type="hidden" name="grok_response" value="{{ grok_response }}">
+                <input type="hidden" name="ai_response" value="{{ ai_response }}">
                 <input type="hidden" name="original_prompt" value="{{ prompt }}">
                 <button type="submit" class="btn btn-primary" style="margin-top:10px;">Send Custom Prompt</button>
             </form>
@@ -565,9 +565,9 @@ HTML_TEMPLATE = """
         <h3>🧠 CLAUDE (Implementation)</h3>
         <div class="response-content">{{ claude_response }}</div>
         <div class="buttons">
-            <form method="POST" action="/send-to-grok" style="display:inline;">
+            <form method="POST" action="/send-to-ai" style="display:inline;">
                 <input type="hidden" name="claude_response" value="{{ claude_response }}">
-                <button type="submit" class="btn btn-secondary">🔄 Send to Grok</button>
+                <button type="submit" class="btn btn-secondary">🔄 Send to AI</button>
             </form>
         </div>
     </div>
@@ -580,9 +580,9 @@ HTML_TEMPLATE = """
         <div class="exchange">
             <div class="timestamp">{{ ex.timestamp }}</div>
             <div class="exchange-prompt">💬 {{ ex.prompt }}</div>
-            <div class="response-box grok" style="margin:10px 0;">
-                <h3>🤖 Grok</h3>
-                <div class="response-content">{{ ex.grok }}</div>
+            <div class="response-box ai" style="margin:10px 0;">
+                <h3>🤖 AI</h3>
+                <div class="response-content">{{ ex.ai }}</div>
             </div>
             {% if ex.claude != '[skipped]' %}
             <div class="response-box claude">
@@ -621,24 +621,24 @@ def index():
 def query():
     prompt = request.form.get('prompt', '')
     history = session.get('history', [])
-    grok_history = session.get('grok_history', [])
+    ai_history = session.get('ai_history', [])
     
     try:
-        grok_response = query_grok(prompt, grok_history)
-        session['pending_grok'] = grok_response
-        session['grok_history'] = grok_history + [
+        ai_response = query_ai(prompt, ai_history)
+        session['pending_ai'] = ai_response
+        session['ai_history'] = ai_history + [
             {"role": "user", "content": prompt},
-            {"role": "assistant", "content": grok_response}
+            {"role": "assistant", "content": ai_response}
         ]
         return render_template_string(HTML_TEMPLATE, 
-            prompt=prompt, grok_response=grok_response, history=history)
+            prompt=prompt, ai_response=ai_response, history=history)
     except Exception as e:
         return render_template_string(HTML_TEMPLATE, 
-            history=history, status={'type': 'error', 'message': f'Grok error: {str(e)}'})
+            history=history, status={'type': 'error', 'message': f'AI error: {str(e)}'})
 
 @app.route('/send-to-claude', methods=['POST'])
 def send_to_claude():
-    grok_response = request.form.get('grok_response', '')
+    ai_response = request.form.get('ai_response', '')
     original_prompt = request.form.get('original_prompt', '')
     custom_prompt = request.form.get('custom_prompt', '')
     
@@ -648,7 +648,7 @@ def send_to_claude():
     if custom_prompt:
         claude_prompt = custom_prompt
     else:
-        claude_prompt = f"Grok (strategy consultant) said:\n\n{grok_response}\n\nRespond with implementation perspective."
+        claude_prompt = f"AI strategy consultant said:\n\n{ai_response}\n\nRespond with implementation perspective."
     
     try:
         claude_response = query_claude(claude_prompt, claude_history)
@@ -661,13 +661,13 @@ def send_to_claude():
         history.append({
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
             'prompt': original_prompt,
-            'grok': grok_response,
+            'ai': ai_response,
             'claude': claude_response
         })
         session['history'] = history
         
         return render_template_string(HTML_TEMPLATE,
-            prompt=original_prompt, grok_response=grok_response, 
+            prompt=original_prompt, ai_response=ai_response, 
             claude_response=claude_response, history=history)
     except Exception as e:
         return render_template_string(HTML_TEMPLATE,
@@ -675,40 +675,40 @@ def send_to_claude():
 
 @app.route('/skip-claude', methods=['POST'])
 def skip_claude():
-    grok_response = request.form.get('grok_response', '')
+    ai_response = request.form.get('ai_response', '')
     original_prompt = request.form.get('original_prompt', '')
     history = session.get('history', [])
     
     history.append({
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M'),
         'prompt': original_prompt,
-        'grok': grok_response,
+        'ai': ai_response,
         'claude': '[skipped]'
     })
     session['history'] = history
     
     return render_template_string(HTML_TEMPLATE, history=history,
-        status={'type': 'success', 'message': 'Skipped Claude, logged Grok response.'})
+        status={'type': 'success', 'message': 'Skipped Claude, logged AI response.'})
 
-@app.route('/send-to-grok', methods=['POST'])
-def send_to_grok():
+@app.route('/send-to-ai', methods=['POST'])
+def send_to_ai():
     claude_response = request.form.get('claude_response', '')
     prompt = f"Claude (implementation) responded:\n\n{claude_response}\n\nYour thoughts?"
     
     history = session.get('history', [])
-    grok_history = session.get('grok_history', [])
+    ai_history = session.get('ai_history', [])
     
     try:
-        grok_response = query_grok(prompt, grok_history)
-        session['grok_history'] = grok_history + [
+        ai_response = query_ai(prompt, ai_history)
+        session['ai_history'] = ai_history + [
             {"role": "user", "content": prompt},
-            {"role": "assistant", "content": grok_response}
+            {"role": "assistant", "content": ai_response}
         ]
         return render_template_string(HTML_TEMPLATE,
-            prompt=prompt, grok_response=grok_response, history=history)
+            prompt=prompt, ai_response=ai_response, history=history)
     except Exception as e:
         return render_template_string(HTML_TEMPLATE,
-            history=history, status={'type': 'error', 'message': f'Grok error: {str(e)}'})
+            history=history, status={'type': 'error', 'message': f'AI error: {str(e)}'})
 
 @app.route('/clear')
 def clear():
@@ -1223,7 +1223,7 @@ def health():
     return jsonify({
         'status': 'ok', 
         'version': '2.1.0',
-        'grok': bool(grok_client), 
+        'ai': bool(ai_client), 
         'claude': bool(claude_client),
         'proxy': True,
         'admin': True,
@@ -1241,7 +1241,7 @@ def unified_pricing():
             "llm": {
                 "endpoint": "/api/v1/llm",
                 "price_watt": 500,
-                "description": "Query Grok AI",
+                "description": "Query AI",
                 "method": "POST"
             },
             "scrape": {
