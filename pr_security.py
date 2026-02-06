@@ -293,10 +293,8 @@ def validate_pr_format(pr_body):
     if not pr_body or len(pr_body.strip()) < 50:
         errors.append("PR body is too short (minimum 50 characters)")
     
-    # Check for wallet
-    wallet, wallet_error = extract_wallet_from_pr_body(pr_body)
-    if wallet_error:
-        errors.append(wallet_error)
+    # Wallet is optional for review - only required for payment
+    # wallet, wallet_error = extract_wallet_from_pr_body(pr_body)
     
     # Check for description/changes section
     # Removed keyword validation - too restrictive for agent contributions
