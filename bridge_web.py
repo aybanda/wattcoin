@@ -126,7 +126,7 @@ from api_reputation import reputation_bp
 from api_tasks import tasks_bp
 from api_nodes import nodes_bp, create_job, wait_for_job_result, cancel_job, get_active_nodes
 from api_pr_review import pr_review_bp
-from api_webhooks import webhooks_bp, process_payment_queue
+from api_webhooks import webhooks_bp, process_payment_queue, load_reputation_data
 from api_wsi import wsi_bp
 app.register_blueprint(admin_bp)
 app.register_blueprint(bounties_bp)
@@ -180,6 +180,8 @@ def _startup_payment_check():
     import time
     time.sleep(15)
     try:
+        # Seed reputation data if missing (auto-creates contributor_reputation.json)
+        load_reputation_data()
         process_payment_queue()
     except Exception as e:
         print(f"[STARTUP] Payment queue processing error: {e}", flush=True)
@@ -1237,7 +1239,7 @@ def health():
     active_nodes = len(get_active_nodes())
     return jsonify({
         'status': 'ok', 
-        'version': '2.1.0',
+        'version': '3.0.0',
         'ai': bool(ai_client), 
         'claude': bool(claude_client),
         'proxy': True,

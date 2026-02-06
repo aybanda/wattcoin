@@ -636,7 +636,7 @@ def health_check():
         "status": "ok",
         "uptime_seconds": int(time.time() - START_TIME),
         "active_jobs": active_jobs,
-        "version": "2.3.0"
+        "version": "3.0.0"
     })
 
 # === Job Creation Helper (called by scraper/inference endpoints) ===

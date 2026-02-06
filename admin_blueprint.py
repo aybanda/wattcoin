@@ -492,7 +492,7 @@ DASHBOARD_TEMPLATE = """
         <div class="flex justify-between items-center mb-4">
             <div>
                 <h1 class="text-2xl font-bold text-green-400">⚡ WattCoin Admin</h1>
-                <p class="text-gray-500 text-sm">v2.3.1 | PR Reviews & Bounty Payouts</p>
+                <p class="text-gray-500 text-sm">v3.0.0 | PR Reviews & Bounty Payouts</p>
             </div>
             <div class="flex items-center gap-3">
                 <!-- System Health -->
