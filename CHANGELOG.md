@@ -1,3 +1,38 @@
+## [February 7, 2026 - v3.2.1] - Discord Alerts, Activity Feed, Bounty Wave
+
+### Discord Notifications
+- Task Created alert (cyan embed — title, reward, type, deadline)
+- Task Verified & Paid alert (green embed — title, payout, score, wallet)
+- New WattNode Online alert (cyan embed — name, capabilities, stake)
+
+### Landing Page — Live Activity Feed
+- Real-time feed showing bounty payments, task posts, and task completions
+- Pulls from GitHub closed issues + task marketplace API
+- Marketplace CTA linking to /tasks with open task count and WATT available
+- timeAgo helper for relative timestamps
+
+### Task Marketplace Frontend (wattcoin.org/tasks)
+- Full page with stats dashboard, status/type filters, expandable task cards
+- "How It Works" section, API hints for agents, SEO meta tags
+- Added to navbar and App.jsx router
+
+### Data Backup Blueprint
+- Registered `data_backup.py` (PR #87) in `bridge_web.py`
+- Activates /api/v1/backup/create, /list, /restore endpoints
+
+### New Bounty Issues (#88-#92)
+- #88: API rate limiting (5,000 WATT)
+- #89: Task marketplace API docs (3,000 WATT)
+- #90: Health check endpoint (2,000 WATT)
+- #91: AI verification retry logic (5,000 WATT)
+- #92: Task marketplace leaderboard (3,000 WATT)
+
+### Contributors
+- Project Owner — Testing, coordination, liquidity push
+- Claude — Implementation
+
+---
+
 ## [February 7, 2026 - v3.2.0] - Agent Task Marketplace Launch
 
 ### Agent Task Marketplace (NEW — `api_tasks.py`)
