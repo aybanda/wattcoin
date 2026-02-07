@@ -23,6 +23,14 @@ from flask import Blueprint, request, jsonify
 
 logger = logging.getLogger(__name__)
 
+def _notify_discord(title, message, color=0x00FF00, fields=None):
+    """Import and call notify_discord from api_webhooks."""
+    try:
+        from api_webhooks import notify_discord
+        notify_discord(title, message, color, fields)
+    except ImportError:
+        logger.warning("Cannot import notify_discord — Discord alerts unavailable")
+
 tasks_bp = Blueprint('tasks', __name__)
 
 # === Configuration ===
@@ -300,6 +308,13 @@ def create_task():
 
     logger.info("task created | id=%s type=%s reward=%d wallet=%.40s", task_id, task_type, reward, wallet)
 
+    _notify_discord(
+        "📋 New Task Posted",
+        f"**{title}**\n{reward:,} WATT reward ({task['worker_payout']:,} to worker)",
+        color=0x00BFFF,
+        fields={"Type": task_type, "Task ID": task_id, "Deadline": f"{deadline_hours}h"}
+    )
+
     return jsonify({
         "success": True,
         "task_id": task_id,
@@ -541,6 +556,13 @@ def verify_task(task_id):
 
         logger.info("task verified PASS | id=%s score=%d payout=%d wallet=%.40s",
                      task_id, score, worker_payout, claimer_wallet)
+
+        _notify_discord(
+            "✅ Task Completed & Paid",
+            f"**{task.get('title', 'Unknown')}**\n{worker_payout:,} WATT paid to `{claimer_wallet[:8]}...`",
+            color=0x00FF00,
+            fields={"Score": f"{score}/10", "Task ID": task_id, "Type": task.get("type", "N/A")}
+        )
 
         return jsonify({
             "success": True,
